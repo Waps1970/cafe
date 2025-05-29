@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Exportación de Café S.A. de C.V. - Sistema de Tickets</title>
+    
+    <!-- Bootstrap 5 -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- FontAwesome 6 -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    
+    <!-- Chart.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    
+    <!-- Firebase SDKs -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.23.0/firebase-app-compat.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.23.0/firebase-auth-compat.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.23.0/firebase-firestore-compat.min.js"></script>
+    
+    <style>
+        :root {
+            --coffee-brown: #6F4E37;
+            --light-brown: #A0522D;
+            --coffee-cream: #F5E6D3;
+            --forest-green: #228B22;
+            --earth-brown: #8B4513;
+            --beige: #F5F5DC;
+        }
+
+        body {
+            background: linear-gradient(135deg, var(--beige) 0%, var(--coffee-cream) 100%);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            min-height: 100vh;
+        }
+
+        .navbar {
+            background: linear-gradient(90deg, var(--coffee-brown) 0%, var(--earth-brown) 100%);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .navbar-brand {
+            color: white !important;
+            font-weight: bold;
+            font-size: 1.5rem;
+        }
+
+        .btn-coffee {
+            background: linear-gradient(45deg, var(--coffee-brown), var(--light-brown));
+            border: none;
+            color: white;
+            transition: transform 0.2s;
+        }
+
+        .btn-coffee:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(111, 78, 55, 0.3);
+            color: white;
+        }
+
+        .btn-green {
+            background: linear-gradient(45deg, var(--forest-green), #32CD32);
+            border: none;
+            color: white;
+            transition: transform 0.2s;
+        }
+
+        .btn-green:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(34, 139, 34, 0.3);
+            color: white;
+        }
+
+        .card {
+            border: none;
+            border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+            background: white;
+            transition: transform 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+        }
+
+        .card-header {
+            background: linear-gradient(90deg, var(--coffee-brown), var(--light-brown));
+            color: white;
+            border-radius: 15px 15px 0 0 !important;
+            font-weight: bold;
+        }
+
+        .ticket-card {
+            margin-bottom: 20px;
+            border-left: 5px solid var(--forest-green);
+        }
+
+        .priority-alta {
+            border-left-color: #dc3545 !important;
+        }
+
+        .priority-media {
+            border-left-color: #ffc107 !important;
+        }
+
+        .priority-baja {
+            border-left-color: #28a745 !important;
+        }
+
+        .form-control:focus {
+            border-color: var(--coffee-brown);
+            box-shadow: 0 0 0 0.2rem rgba(111, 78, 55, 0.25);
+        }
+
+        .login-container {
+            max-width: 400px;
+            margin: 100px auto;
+        }
+
+        .coffee-icon {
+            font-size: 3rem;
+            color: var(--coffee-brown);
+            margin-bottom: 20px;
+        }
+
+        .stats-card {
+            background: linear-gradient(135deg, white 0%, var(--coffee-cream) 100%);
+        }
+
+        .modal-header {
+            background: linear-gradient(90deg, var(--coffee-brown), var(--light-brown));
+            color: white;
+        }
+
+        .badge-priority {
+            font-size: 0.8rem;
+            padding: 5px 10px;
+        }
+
+        .loading {
+            display: none;
+        }
+
+        .loading.show {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg">
+        <div class="container">
+            <a class="navbar-brand" href="#">
+                <i class="fas fa-coffee me-2"></i>
+                Exportación de Café S.A. de C.V.
+            </a>
+            <div class="navbar-nav ms-auto" id="navbarContent" style="display: none;">
+                <span class="navbar-text text-white me-3" id="userWelcome"></span>
+                <button class="btn btn-outline-light btn-sm" onclick="logout()">
+                    <i class="fas fa-sign-out-alt"></i> Cerrar Sesión
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Loading Spinner -->
+    <div class="loading text-center py-5" id="loadingSpinner">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Cargando...</span>
+        </div>
+    </div>
+
+    <!-- Login/Register Section -->
+    <div class="container" id="authSection">
+        <div class="login-container">
+            <div class="card">
+                <div class="card-body text-center">
+                    <i class="fas fa-coffee coffee-icon"></i>
+                    <h2 class="mb-4">Sistema de Tickets</h2>
+                    
+                    <!-- Login Form -->
+                    <div id="loginForm">
+                        <h4 class="mb-3">Iniciar Sesión</h4>
+                        <form onsubmit="login(event)">
+                            <div class="mb-3">
+                                <input type="email" class="form-control" id="loginEmail" placeholder="Correo electrónico" required>
+                            </div>
+                            <div class="mb-3">
+                                <input type="password" class="form-control" id="loginPassword" placeholder="Contraseña" required>
+                            </div>
+                            <button type="submit" class="btn btn-coffee w-100 mb-3">
+                                <i class="fas fa-sign-in-alt me-2"></i>Iniciar Sesión
+                            </button>
+                        </form>
+                        <p class="mb-2">
+                            <a href="#" onclick="showRegisterForm()" class="text-decoration-none">¿No tienes cuenta? Regístrate</a>
+                        </p>
+                        <p>
+                            <a href="#" onclick="showPasswordReset()" class="text-decoration-none">¿Olvidaste tu contraseña?</a>
+                        </p>
+                    </div>
+
+                    <!-- Register Form -->
+                    <div id="registerForm" style="display: none;">
+                        <h4 class="mb-3">Registro de Empleado</h4>
+                        <form onsubmit="register(event)">
+                            <div class="mb-3">
+                                <input type="text" class="form-control" id="registerName" placeholder="Nombre completo" required>
+                            </div>
+                            <div class="mb-3">
+                                <input type="email" class="form-control" id="registerEmail" placeholder="Correo electrónico" required>
+                            </div>
+                            <div class="mb-3">
+                                <input type="password" class="form-control" id="registerPassword" placeholder="Contraseña" required>
+                            </div>
+                            <button type="submit" class="btn btn-green w-100 mb-3">
+                                <i class="fas fa-user-plus me-2"></i>Registrarse
+                            </button>
+                        </form>
+                        <p>
+                            <a href="#" onclick="showLoginForm()" class="text-decoration-none">¿Ya tienes cuenta? Inicia sesión</a>
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Application -->
+    <div class="container mt-4" id="mainApp" style="display: none;">
+        <!-- Action Buttons -->
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <button class="btn btn-coffee me-2" onclick="showCreateTicketModal()">
+                    <i class="fas fa-plus me-2"></i>Crear Ticket
+                </button>
+                <button class="btn btn-green" onclick="exportToExcel()">
+                    <i class="fas fa-file-excel me-2"></i>Exportar Excel
+                </button>
+            </div>
+        </div>
+
+        <!-- Statistics -->
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="card stats-card">
+                    <div class="card-header">
+                        <i class="fas fa-chart-bar me-2"></i>Estadísticas por Prioridad
+                    </div>
+                    <div class="card-body">
+                        <canvas id="priorityChart" width="400" height="200"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card stats-card">
+                    <div class="card-header">
+                        <i class="fas fa-info-circle me-2"></i>Resumen
+                    </div>
+                    <div class="card-body">
+                        <div class="row text-center">
+                            <div class="col-4">
+                                <h3 class="text-coffee-brown" id="totalTickets">0</h3>
+                                <small>Total Tickets</small>
+                            </div>
+                            <div class="col-4">
+                                <h3 class="text-success" id="openTickets">0</h3>
+                                <small>Abiertos</small>
+                            </div>
+                            <div class="col-4">
+                                <h3 class="text-secondary" id="closedTickets">0</h3>
+                                <small>Cerrados</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tickets List -->
+        <div class="row">
+            <div class="col-12">
+                <h4 class="mb-3">
+                    <i class="fas fa-ticket-alt me-2"></i>Tickets Activos
+                </h4>
+                <div id="ticketsList" class="row">
+                    <!-- Tickets will be loaded here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Ticket Modal -->
+    <div class="modal fade" id="createTicketModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-plus me-2"></i>Crear Nuevo Ticket
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="createTicketForm" onsubmit="createTicket(event)">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Título del Pedido</label>
+                                    <input type="text" class="form-control" id="ticketTitle" required>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Nombre del Cliente</label>
+                                    <input type="text" class="form-control" id="clientName" required>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Descripción del Pedido</label>
+                            <textarea class="form-control" id="ticketDescription" rows="3" required></textarea>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label class="form-label">Prioridad</label>
+                                    <select class="form-select" id="ticketPriority" required>
+                                        <option value="Baja">Baja</option>
+                                        <option value="Media" selected>Media</option>
+                                        <option value="Alta">Alta</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label class="form-label">Estado</label>
+                                    <select class="form-select" id="ticketStatus">
+                                        <option value="Abierto" selected>Abierto</option>
+                                        <option value="Cerrado">Cerrado</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label class="form-label">Kilogramos de Café</label>
+                                    <input type="number" class="form-control" id="coffeeKg" min="1" required>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Tipo de Producto</label>
+                                    <select class="form-select" id="productType" required>
+                                        <option value="Arábica">Arábica</option>
+                                        <option value="Robusta">Robusta</option>
+                                        <option value="Mezcla">Mezcla</option>
+                                        <option value="Descafeinado">Descafeinado</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">País de Envío</label>
+                                    <input type="text" class="form-control" id="shippingCountry" required>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                            <button type="submit" class="btn btn-coffee">
+                                <i class="fas fa-save me-2"></i>Crear Ticket
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Password Reset Modal -->
+    <div class="modal fade" id="passwordResetModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-key me-2"></i>Recuperar Contraseña
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form onsubmit="resetPassword(event)">
+                        <div class="mb-3">
+                            <label class="form-label">Correo electrónico</label>
+                            <input type="email" class="form-control" id="resetEmail" placeholder="Ingresa tu correo" required>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                            <button type="submit" class="btn btn-coffee">
+                                <i class="fas fa-paper-plane me-2"></i>Enviar
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        // Firebase Configuration - Replace with your Firebase config
+        const firebaseConfig = {
+            // Add your Firebase configuration here
+            apiKey: "your-api-key",
+            authDomain: "your-project.firebaseapp.com",
+            projectId: "your-project-id",
+            storageBucket: "your-project.appspot.com",
+            messagingSenderId: "123456789",
+            appId: "your-app-id"
+        };
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+
+        // Global variables
+        let currentUser = null;
+        let tickets = [];
+        let ticketCounter = 1;
+        let priorityChart = null;
+
+        // Initialize app
+        document.addEventListener('DOMContentLoaded', function() {
+            showLoading();
+            
+            // Check authentication state
+            auth.onAuthStateChanged(user => {
+                hideLoading();
+                if (user) {
+                    currentUser = user;
+                    showMainApp();
+                    loadTickets();
+                } else {
+                    showAuthSection();
+                }
+            });
+        });
+
+        // Authentication Functions
+        function login(event) {
+            event.preventDefault();
+            showLoading();
+            
+            const email = document.getElementById('loginEmail').value;
+            const password = document.getElementById('loginPassword').value;
+            
+            auth.signInWithEmailAndPassword(email, password)
+                .then(userCredential => {
+                    hideLoading();
+                    showAlert('Bienvenido al sistema', 'success');
+                })
+                .catch(error => {
+                    hideLoading();
+                    showAlert('Error al iniciar sesión: ' + error.message, 'danger');
+                });
+        }
+
+        function register(event) {
+            event.preventDefault();
+            showLoading();
+            
+            const name = document.getElementById('registerName').value;
+            const email = document.getElementById('registerEmail').value;
+            const password = document.getElementById('registerPassword').value;
+            
+            auth.createUserWithEmailAndPassword(email, password)
+                .then(userCredential => {
+                    return userCredential.user.updateProfile({
+                        displayName: name
+                    });
+                })
+                .then(() => {
+                    hideLoading();
+                    showAlert('Registro exitoso. Bienvenido al sistema', 'success');
+                })
+                .catch(error => {
+                    hideLoading();
+                    showAlert('Error en el registro: ' + error.message, 'danger');
+                });
+        }
+
+        function logout() {
+            auth.signOut().then(() => {
+                showAlert('Sesión cerrada correctamente', 'info');
+            });
+        }
+
+        function resetPassword(event) {
+            event.preventDefault();
+            const email = document.getElementById('resetEmail').value;
+            
+            auth.sendPasswordResetEmail(email)
+                .then(() => {
+                    showAlert('Se ha enviado un correo para restablecer tu contraseña', 'success');
+                    bootstrap.Modal.getInstance(document.getElementById('passwordResetModal')).hide();
+                })
+                .catch(error => {
+                    showAlert('Error: ' + error.message, 'danger');
+                });
+        }
+
+        // Ticket Management Functions
+        function createTicket(event) {
+            event.preventDefault();
+            showLoading();
+            
+            const ticketData = {
+                folio: `COFFEE-${String(ticketCounter).padStart(3, '0')}`,
+                title: document.getElementById('ticketTitle').value,
+                description: document.getElementById('ticketDescription').value,
+                priority: document.getElementById('ticketPriority').value,
+                status: document.getElementById('ticketStatus').value,
+                clientName: document.getElementById('clientName').value,
+                coffeeKg: parseFloat(document.getElementById('coffeeKg').value),
+                productType: document.getElementById('productType').value,
+                shippingCountry: document.getElementById('shippingCountry').value,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                createdBy: currentUser.uid,
+                createdByName: currentUser.displayName || currentUser.email
+            };
+            
+            db.collection('tickets').add(ticketData)
+                .then(() => {
+                    hideLoading();
+                    ticketCounter++;
+                    document.getElementById('createTicketForm').reset();
+                    bootstrap.Modal.getInstance(document.getElementById('createTicketModal')).hide();
+                    showAlert('Ticket creado exitosamente', 'success');
+                    loadTickets();
+                })
+                .catch(error => {
+                    hideLoading();
+                    showAlert('Error al crear ticket: ' + error.message, 'danger');
+                });
+        }
+
+        function loadTickets() {
+            showLoading();
+            
+            db.collection('tickets')
+                .orderBy('createdAt', 'desc')
+                .onSnapshot(snapshot => {
+                    tickets = [];
+                    snapshot.forEach(doc => {
+                        tickets.push({
+                            id: doc.id,
+                            ...doc.data()
+                        });
+                    });
+                    
+                    displayTickets();
+                    updateStatistics();
+                    updateChart();
+                    hideLoading();
+                }, error => {
+                    hideLoading();
+                    showAlert('Error al cargar tickets: ' + error.message, 'danger');
+                });
+        }
+
+        function displayTickets() {
+            const ticketsList = document.getElementById('ticketsList');
+            ticketsList.innerHTML = '';
+            
+            if (tickets.length === 0) {
+                ticketsList.innerHTML = `
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-body text-center">
+                                <i class="fas fa-coffee fa-3x text-muted mb-3"></i>
+                                <h5>No hay tickets disponibles</h5>
+                                <p class="text-muted">Crea tu primer ticket para comenzar</p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                return;
+            }
+            
+            tickets.forEach(ticket => {
+                const priorityClass = `priority-${ticket.priority.toLowerCase()}`;
+                const priorityColor = ticket.priority === 'Alta' ? 'danger' : 
+                                   ticket.priority === 'Media' ? 'warning' : 'success';
+                const statusColor = ticket.status === 'Abierto' ? 'success' : 'secondary';
+                
+                const ticketCard = `
+                    <div class="col-md-6 col-lg-4">
+                        <div class="card ticket-card ${priorityClass}">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <strong>${ticket.folio}</strong>
+                                <div>
+                                    <span class="badge bg-${priorityColor} me-1">${ticket.priority}</span>
+                                    <span class="badge bg-${statusColor}">${ticket.status}</span>
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                <h6 class="card-title">${ticket.title}</h6>
+                                <p class="card-text text-muted small">${ticket.description}</p>
+                                <div class="row small text-muted">
+                                    <div class="col-6">
+                                        <i class="fas fa-user me-1"></i>${ticket.clientName}
+                                    </div>
+                                    <div class="col-6">
+                                        <i class="fas fa-weight me-1"></i>${ticket.coffeeKg} kg
+                                    </div>
+                                    <div class="col-6">
+                                        <i class="fas fa-coffee me-1"></i>${ticket.productType}
+                                    </div>
+                                    <div class="col-6">
+                                        <i class="fas fa-globe me-1"></i>${ticket.shippingCountry}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card-footer d-flex justify-content-between">
+                                <small class="text-muted">
+                                    Por: ${ticket.createdByName}
+                                </small>
+                                <button class="btn btn-sm btn-outline-danger" onclick="deleteTicket('${ticket.id}')">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                ticketsList.innerHTML += ticketCard;
+            });
+        }
+
+        function deleteTicket(ticketId) {
+            if (confirm('¿Estás seguro de que deseas eliminar este ticket?')) {
+                showLoading();
+                db.collection('tickets').doc(ticketId).delete()
+                    .then(() => {
+                        hideLoading();
+                        showAlert('Ticket eliminado correctamente', 'success');
+                    })
+                    .catch(error => {
+                        hideLoading();
+                        showAlert('Error al eliminar ticket: ' + error.message, 'danger');
+                    });
+            }
+        }
+
+        function updateStatistics() {
+            const totalTickets = tickets.length;
+            const openTickets = tickets.filter(t => t.status === 'Abierto').length;
+            const closedTickets = tickets.filter(t => t.status === 'Cerrado').length;
+            
+            document.getElementById('totalTickets').textContent = totalTickets;
+            document.getElementById('openTickets').textContent = openTickets;
+            document.getElementById('closedTickets').textContent = closedTickets;
+        }
+
+        function updateChart() {
+            const priorityCounts = {
+                'Alta': tickets.filter(t => t.priority === 'Alta').length,
+                'Media': tickets.filter(t => t.priority === 'Media').length,
+                'Baja': tickets.filter(t => t.priority === 'Baja').length
+            };
+            
+            const ctx = document.getElementById('priorityChart').getContext('2d');
+            
+            if (priorityChart) {
+                priorityChart.destroy();
+            }
+            
+            priorityChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Alta', 'Media', 'Baja'],
+                    datasets: [{
+                        label: 'Cantidad de Tickets',
+                        data: [priorityCounts.Alta, priorityCounts.Media, priorityCounts.Baja],
+                        backgroundColor: [
+                            'rgba(220, 53, 69, 0.8)',
+                            'rgba(255, 193, 7, 0.8)',
+                            'rgba(40, 167, 69, 0.8)'
+                        ],
+                        borderColor: [
+                            'rgba(220, 53, 69, 1)',
+                            'rgba(255, 193, 7, 1)',
+                            'rgba(40, 167, 69, 1)'
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                stepSize: 1
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    }
+                }
+            });
+        }
+
+        function exportToExcel() {
+            if (tickets.length === 0) {
+                showAlert('No hay tickets para exportar', 'warning');
+                return;
+            }
+            
+            // Create CSV content
+            let csvContent = "Folio,Título,Descripción,Cliente,Prioridad,Estado,Kg Café,Tipo Producto,País Envío,Creado Por\n";
+            
+            tickets.forEach(ticket => {
+                const row = [
+                    ticket.folio,
+                    `"${ticket.title}"`,
+                    `"${ticket.description}"`,
+                    `"${ticket.clientName}"`,
+                    ticket.priority,
+                    ticket.status,
+                    ticket.coffeeKg,
+                    ticket.productType,
+                    `"${ticket.shippingCountry}"`,
+                    `"${ticket.createdByName}"`
+                ].join(',');
+                csvContent += row + "\n";
+            });
+            
+            // Create and download file
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', `tickets_cafe_${new Date().toISOString().split('T')[0]}.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            showAlert('Archivo exportado correctamente', 'success');
+        }
+
+        // UI Helper Functions
+        function showMainApp() {
+            document.getElementById('authSection
